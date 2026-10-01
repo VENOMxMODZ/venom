@@ -1,0 +1,20 @@
+TARGET := iphone:clang:latest:14.0
+ARCHS = arm64 arm64e
+
+include $(THEOS)/makefiles/common.mk
+
+TWEAK_NAME = DefineAura
+
+DefineAura_FILES = src/APIClient.m \
+                   src/SessionManager.m \
+                   src/ModuleInterface.m \
+                   src/LoginManager.m \
+                   src/LoginViewController.m \
+                   src/FloatingView.m \
+                   src/FloatingController.m \
+                   src/DylibEntry.m
+
+DefineAura_CFLAGS = -fobjc-arc -I./include
+DefineAura_FRAMEWORKS = UIKit Foundation Security CoreGraphics
+
+include $(THEOS_MAKE_PATH)/tweak.mk
