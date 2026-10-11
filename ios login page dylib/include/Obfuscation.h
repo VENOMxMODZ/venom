@@ -12,12 +12,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-static inline NSString * _Nonnull OBF_DECRYPT(const uint8_t * _Nonnull cipher, size_t len, uint8_t key) {
+__attribute__((optnone)) static inline NSString * _Nonnull OBF_DECRYPT(const uint8_t * _Nonnull cipher, size_t len, uint8_t key) {
+    volatile uint8_t vkey = key;
     char *buf = (char *)malloc(len + 1);
     if (!buf) return @"";
     for (size_t i = 0; i < len; i++) {
-        uint8_t k = (uint8_t)((key + (i * 7)) & 0xFF);
-        buf[i] = (char)(cipher[i] ^ k);
+        volatile uint8_t b = cipher[i];
+        uint8_t k = (uint8_t)((vkey + (i * 7)) & 0xFF);
+        buf[i] = (char)(b ^ k);
     }
     buf[len] = '\0';
     NSString *res = [NSString stringWithUTF8String:buf];
@@ -26,10 +28,12 @@ static inline NSString * _Nonnull OBF_DECRYPT(const uint8_t * _Nonnull cipher, s
     return res ?: @"";
 }
 
-static inline void OBF_DECRYPT_CSTR(const uint8_t * _Nonnull cipher, size_t len, uint8_t key, char * _Nonnull outBuf) {
+__attribute__((optnone)) static inline void OBF_DECRYPT_CSTR(const uint8_t * _Nonnull cipher, size_t len, uint8_t key, char * _Nonnull outBuf) {
+    volatile uint8_t vkey = key;
     for (size_t i = 0; i < len; i++) {
-        uint8_t k = (uint8_t)((key + (i * 7)) & 0xFF);
-        outBuf[i] = (char)(cipher[i] ^ k);
+        volatile uint8_t b = cipher[i];
+        uint8_t k = (uint8_t)((vkey + (i * 7)) & 0xFF);
+        outBuf[i] = (char)(b ^ k);
     }
     outBuf[len] = '\0';
 }
