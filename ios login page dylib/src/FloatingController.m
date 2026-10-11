@@ -8,6 +8,7 @@
 #import "FloatingController.h"
 #import "LoginManager.h"
 #import "LoginViewController.h"
+#import "SecurityHardening.h"
 
 #pragma mark - Pass-Through Overlay Window
 
@@ -79,6 +80,11 @@
 }
 
 - (void)showFloatingUIWithExpiry:(nullable NSString *)expiry {
+    if (!SecurityValidateServerSession()) {
+        SecurityTriggerTrap();
+        return;
+    }
+    
     if (self.visible && self.overlayWindow) {
         [self.floatingView updateStatus:@"Active & Authorized" expiry:expiry];
         return;

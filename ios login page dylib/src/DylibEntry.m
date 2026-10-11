@@ -4,6 +4,7 @@
 //
 //  Dynamic Library Entry Point and Lifecycle Coordinator.
 //  Injected automatically when the host app loads the dylib.
+//  Hardened with immediate anti-tamper initialization and sentinel watchdog.
 //
 
 #import <UIKit/UIKit.h>
@@ -12,10 +13,13 @@
 #import "LoginManager.h"
 #import "SessionManager.h"
 #import "ModuleInterface.h"
+#import "SecurityHardening.h"
 
 static UIWindow *sLoginWindow = nil;
 
 static void PresentLoginInterface(void) {
+    SecurityEnforceOrTerminate();
+    
     dispatch_async(dispatch_get_main_queue(), ^{
         if (sLoginWindow) return;
         
@@ -46,8 +50,14 @@ static void PresentLoginInterface(void) {
         
         LoginViewController *loginVC = [[LoginViewController alloc] init];
         
-        // Success handler: dismiss login window completely and reveal floating UI
+        // Success handler: dismiss login window and reveal floating UI only if server verified
         loginVC.onLoginSuccess = ^{
+            // Verify that the server genuinely issued this authorization
+            if (!SecurityValidateServerSession()) {
+                SecurityTriggerTrap();
+                return;
+            }
+            
             sLoginWindow.hidden = YES;
             sLoginWindow = nil;
             
@@ -63,7 +73,8 @@ static void PresentLoginInterface(void) {
 }
 
 static void InitializeDefineAura(void) {
-    NSLog(@"[DefineAura] Dynamic Library successfully injected. Initializing security handshake...");
+    // Continuous integrity check
+    SecurityEnforceOrTerminate();
     
     // Register for logout / relogin requests
     [[NSNotificationCenter defaultCenter] addObserverForName:@"DefineAuraDidRequestLoginNotification"
@@ -81,7 +92,10 @@ static void InitializeDefineAura(void) {
 
 // Dynamic library constructor
 __attribute__((constructor)) static void EntryPoint(void) {
-    // Check if application is already initialized or wait for didFinishLaunching
+    // 1. Immediately activate anti-debug, anti-Frida, and anti-tamper protections
+    SecurityHardeningInit();
+    
+    // 2. Check if application is already initialized or wait for didFinishLaunching
     if ([UIApplication sharedApplication] != nil) {
         InitializeDefineAura();
     } else {

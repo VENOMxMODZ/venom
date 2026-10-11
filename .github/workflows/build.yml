@@ -1,0 +1,43 @@
+name: Build DefineAura iOS Dylib
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Select Xcode
+      run: |
+        sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+        xcrun --sdk iphoneos --show-sdk-path
+
+    - name: Build DefineAura.dylib
+      run: |
+        if [ -d "ios login page dylib" ]; then
+          cd "ios login page dylib"
+        fi
+        make
+        file DefineAura.dylib
+        otool -L DefineAura.dylib
+        echo "===> Verifying string obfuscation (zero plaintext URLs/keys)..."
+        if strings DefineAura.dylib | grep -E "venompanel\.shop|rootapi"; then
+          echo "ERROR: Server endpoint found in plaintext binary!"
+          exit 1
+        else
+          echo "PASS: Server endpoint is fully encrypted and hidden."
+        fi
+
+    - name: Upload Build Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: DefineAura-dylib
+        path: "**/DefineAura.dylib"

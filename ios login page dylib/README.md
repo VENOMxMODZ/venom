@@ -42,7 +42,15 @@ A modular, production-ready authentication and floating UI overlay system for iO
    - Stores user license key, session token, and expiry date securely.
    - **Zero Embedded Server Secrets:** Client only sends the public authentication payload without embedding private administrative keys.
 
-5. **Clean Separation of Concerns (`ModuleInterface`)**
+5. **Military-Grade Anti-Crack & Anti-Tamper Engine (`SecurityHardening`)**
+   - **Zero Plaintext Strings / Web Links:** The server endpoint (`venompanel.shop`), game identifier, request parameter names, headers, and security paths are compiled as encrypted byte arrays (`Obfuscation.h`) decoded ephemerally in RAM.
+   - **Strict SSL / TLS Pinning:** Custom `NSURLSessionDelegate` verifying host identity and root certificates, blocking MITM proxy tools (Burp Suite, Charles Proxy, Mitmproxy).
+   - **Dynamic Anti-Debugging (`ptrace` + `sysctl`):** Denies debugger attachment (`PT_DENY_ATTACH`) via dynamic symbol resolution and inspects `P_TRACED` proc flags.
+   - **Anti-Frida & Injected Dylib Scanner:** Inspects loaded Mach-O images via `_dyld_image_count()` for Frida (`FridaGadget`, `frida-agent`), Cycript, Substrate, Substitute, and scans local Frida debug ports (27042).
+   - **Continuous Sentinel Watchdog Thread:** Spawns a background sentinel thread running randomized interval checks that trigger immediate silent hardware traps (`__builtin_trap()`) upon detecting tampering.
+   - **Cryptographic Server Session Canary ("Only My Server Can Login"):** Prevents local bypasses and hook-based spoofing (`isAuthorized = YES`). Native module actions verify a 64-bit cryptographic canary issued strictly upon legitimate server response validation.
+
+6. **Clean Separation of Concerns (`ModuleInterface`)**
    - Decoupled native module interface.
    - Keeps business/payload logic strictly independent from UI and network code.
    - Automatically booted upon successful login (`startModuleWithSessionToken:licenseKey:expiryDate:`) and terminated upon logout (`stopModule`).
@@ -54,7 +62,9 @@ A modular, production-ready authentication and floating UI overlay system for iO
 ```
 ios login page dylib/
 ├── include/                     # Objective-C Public Headers
-│   ├── APIClient.h              # HTTPS networking & response parsing
+│   ├── Obfuscation.h            # Compile-time encrypted string data & decoders
+│   ├── SecurityHardening.h      # Anti-crack, anti-debug, and canary engine
+│   ├── APIClient.h              # HTTPS networking & TLS certificate verification
 │   ├── SessionManager.h         # Keychain secure storage & device ID
 │   ├── LoginManager.h           # Authentication flow orchestration
 │   ├── LoginViewController.h    # Dark login UI controller
@@ -62,6 +72,7 @@ ios login page dylib/
 │   ├── FloatingController.h     # Overlay window & touch pass-through
 │   └── ModuleInterface.h        # Decoupled authorized module interface
 ├── src/                         # Objective-C Implementation Files (.m)
+│   ├── SecurityHardening.m      # Anti-debug, anti-Frida, sentinel thread, canaries
 │   ├── APIClient.m
 │   ├── SessionManager.m
 │   ├── LoginManager.m
@@ -71,6 +82,7 @@ ios login page dylib/
 │   ├── ModuleInterface.m
 │   └── DylibEntry.m             # __attribute__((constructor)) dylib loader
 ├── swift/                       # Pure Swift Implementations
+│   ├── SecurityHardening.swift  # Swift anti-crack sentinel & obfuscation
 │   ├── APIClient.swift
 │   ├── SessionManager.swift
 │   ├── LoginManager.swift
@@ -78,7 +90,9 @@ ios login page dylib/
 │   ├── FloatingView.swift
 │   ├── FloatingController.swift
 │   └── ModuleInterface.swift
-├── Makefile                     # Build script for iOS arm64 dylib
+├── tools/
+│   └── generate_obfuscated_keys.py # String encryption generator
+├── Makefile                     # Hardened build script for iOS arm64 dylib (-O3, -fvisibility=hidden, strip -x)
 └── README.md                    # System documentation
 ```
 

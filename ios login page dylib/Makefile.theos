@@ -5,7 +5,8 @@ include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME = DefineAura
 
-DefineAura_FILES = src/APIClient.m \
+DefineAura_FILES = src/SecurityHardening.m \
+                   src/APIClient.m \
                    src/SessionManager.m \
                    src/ModuleInterface.m \
                    src/LoginManager.m \
@@ -14,7 +15,8 @@ DefineAura_FILES = src/APIClient.m \
                    src/FloatingController.m \
                    src/DylibEntry.m
 
-DefineAura_CFLAGS = -fobjc-arc -I./include
-DefineAura_FRAMEWORKS = UIKit Foundation Security CoreGraphics
+DefineAura_CFLAGS = -fobjc-arc -O3 -fvisibility=hidden -I./include -Wno-unused-parameter
+DefineAura_LDFLAGS = -Wl,-dead_strip
+DefineAura_FRAMEWORKS = UIKit Foundation Security CoreGraphics QuartzCore
 
 include $(THEOS_MAKE_PATH)/tweak.mk

@@ -3,12 +3,14 @@
 //  DefineAura
 //
 //  Decoupled interface for the authorized native application module.
+//  Protected by inlined cryptographic server session validation & anti-crack sentinels.
 //
 
 #import "ModuleInterface.h"
+#import "SecurityHardening.h"
 
 @interface ModuleInterface ()
-@property (nonatomic, assign, readwrite, getter=isAuthorized) BOOL authorized;
+@property (nonatomic, assign, readwrite) BOOL authorized;
 @property (nonatomic, assign, readwrite, getter=isRunning) BOOL running;
 @property (nonatomic, copy, nullable) NSString *currentSessionToken;
 @property (nonatomic, copy, nullable) NSString *currentLicenseKey;
@@ -35,11 +37,38 @@
     return self;
 }
 
+- (BOOL)isAuthorized {
+    // Multi-layered authorization check:
+    // Requires both internal flag AND cryptographic server session canary
+    if (!_authorized) {
+        return NO;
+    }
+    
+    if (!SecurityValidateServerSession()) {
+        // Cracking/tampering detected: local flag set without valid server handshake!
+        SecurityTriggerTrap();
+        return NO;
+    }
+    
+    return YES;
+}
+
 - (void)startModuleWithSessionToken:(NSString *)token
                          licenseKey:(NSString *)licenseKey
                          expiryDate:(nullable NSString *)expiryDate {
+    
+    // Continuous environment verification
+    SecurityEnforceOrTerminate();
+    
+    // Verify that the server actually validated this session cryptographically
+    if (!SecurityValidateServerSession()) {
+        // Attacker attempted to bypass authentication by calling startModule directly
+        SecurityTriggerTrap();
+        return;
+    }
+    
     if (token.length == 0 && licenseKey.length == 0) {
-        NSLog(@"[DefineAura] Unauthorized module startup attempt blocked.");
+        SecurityTriggerTrap();
         return;
     }
     
@@ -49,14 +78,9 @@
     self.currentExpiryDate = expiryDate;
     self.running = YES;
     
-    NSLog(@"[DefineAura] Authorized module initialized successfully. Expiry: %@", expiryDate ?: @"N/A");
-    
-    // Notify delegate if set
     if ([self.delegate respondsToSelector:@selector(moduleDidUpdateStatus:)]) {
         [self.delegate moduleDidUpdateStatus:@"Module Active & Synchronized"];
     }
-    
-    // Here you can hook internal engine callbacks, allocate memory buffers, or register game observation hooks
 }
 
 - (void)stopModule {
@@ -66,7 +90,7 @@
     self.currentLicenseKey = nil;
     self.currentExpiryDate = nil;
     
-    NSLog(@"[DefineAura] Authorized module stopped and session purged.");
+    SecurityInvalidateSession();
     
     if ([self.delegate respondsToSelector:@selector(moduleDidUpdateStatus:)]) {
         [self.delegate moduleDidUpdateStatus:@"Module Deactivated"];
@@ -74,12 +98,14 @@
 }
 
 - (void)executeFeatureActionNamed:(NSString *)featureName parameters:(nullable NSDictionary *)params {
-    if (!self.authorized || !self.running) {
-        NSLog(@"[DefineAura] Action '%@' blocked: Module is not authorized.", featureName);
+    SecurityEnforceOrTerminate();
+    
+    if (!self.isAuthorized || !self.running) {
+        SecurityTriggerTrap();
         return;
     }
     
-    NSLog(@"[DefineAura] Executing authorized feature action: %@ with params: %@", featureName, params);
+    // Core payload execution protected by verified server session
 }
 
 @end

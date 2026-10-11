@@ -3,6 +3,7 @@
 //  DefineAura
 //
 //  Decoupled interface for the authorized native application module.
+//  Protected by cryptographic server canary validation and anti-crack sentinels.
 //
 
 import Foundation
@@ -16,7 +17,16 @@ public class ModuleInterface {
     public static let shared = ModuleInterface()
     
     public weak var delegate: ModuleInterfaceDelegate?
-    public private(set) var isAuthorized: Bool = false
+    
+    public var isAuthorized: Bool {
+        guard _internalAuthorized else { return false }
+        if !SecurityHardening.shared.validateServerSession() {
+            SecurityHardening.shared.triggerTrap()
+        }
+        return true
+    }
+    
+    private var _internalAuthorized: Bool = false
     public private(set) var isRunning: Bool = false
     
     public private(set) var currentSessionToken: String?
@@ -26,37 +36,42 @@ public class ModuleInterface {
     private init() {}
     
     public func startModule(sessionToken: String, licenseKey: String, expiryDate: String?) {
-        guard !sessionToken.isEmpty || !licenseKey.isEmpty else {
-            print("[DefineAura] Unauthorized startup blocked.")
-            return
+        SecurityHardening.shared.enforceOrTerminate()
+        
+        // Block direct function invocation unless cryptographic server session is confirmed
+        guard SecurityHardening.shared.validateServerSession() else {
+            SecurityHardening.shared.triggerTrap()
         }
         
-        self.isAuthorized = true
+        guard !sessionToken.isEmpty || !licenseKey.isEmpty else {
+            SecurityHardening.shared.triggerTrap()
+        }
+        
+        self._internalAuthorized = true
         self.currentSessionToken = sessionToken
         self.currentLicenseKey = licenseKey
         self.currentExpiryDate = expiryDate
         self.isRunning = true
         
-        print("[DefineAura] Module initialized. Expiry: \(expiryDate ?? "N/A")")
         delegate?.moduleDidUpdateStatus("Module Active & Synchronized")
     }
     
     public func stopModule() {
         self.isRunning = false
-        self.isAuthorized = false
+        self._internalAuthorized = false
         self.currentSessionToken = nil
         self.currentLicenseKey = nil
         self.currentExpiryDate = nil
         
-        print("[DefineAura] Module stopped.")
+        SecurityHardening.shared.invalidateSession()
         delegate?.moduleDidUpdateStatus("Module Deactivated")
     }
     
     public func executeFeatureAction(named name: String, parameters: [String: Any]? = nil) {
+        SecurityHardening.shared.enforceOrTerminate()
         guard isAuthorized && isRunning else {
-            print("[DefineAura] Action '\(name)' blocked: unauthorized.")
-            return
+            SecurityHardening.shared.triggerTrap()
         }
-        print("[DefineAura] Executing action '\(name)' with params: \(String(describing: parameters))")
+        // Native feature payload executed under verified server session
     }
 }

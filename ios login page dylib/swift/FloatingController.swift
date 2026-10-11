@@ -37,6 +37,10 @@ public class FloatingController: FloatingViewDelegate {
     private init() {}
     
     public func showFloatingUI(expiry: String? = nil) {
+        guard SecurityHardening.shared.validateServerSession() else {
+            SecurityHardening.shared.triggerTrap()
+        }
+        
         if isVisible, let floating = floatingView {
             floating.updateStatus(status: "Active & Authorized", expiry: expiry)
             return
